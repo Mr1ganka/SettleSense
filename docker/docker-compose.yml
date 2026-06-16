@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: settlesense-postgres
+    environment:
+      POSTGRES_DB: settlesense
+      POSTGRES_USER: settlesense
+      POSTGRES_PASSWORD: settlesense
+    ports:
+      - "5432:5432"
+    volumes:
+      - settlesense-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U settlesense -d settlesense"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  settlesense-postgres-data:
