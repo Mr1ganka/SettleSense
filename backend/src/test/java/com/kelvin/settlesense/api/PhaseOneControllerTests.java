@@ -27,8 +27,15 @@ import com.kelvin.settlesense.domain.model.SettlementStatus;
 import com.kelvin.settlesense.domain.model.SplitType;
 import com.kelvin.settlesense.domain.model.User;
 import com.kelvin.settlesense.domain.model.UserStatus;
+import com.kelvin.settlesense.domain.model.dto.AddMemberRequest;
+import com.kelvin.settlesense.domain.model.dto.CreateGroupRequest;
+import com.kelvin.settlesense.domain.model.dto.PostExpenseRequest;
+import com.kelvin.settlesense.domain.model.dto.PostSettlementRequest;
+import com.kelvin.settlesense.domain.model.dto.RegisterUserRequest;
 import com.kelvin.settlesense.domain.repository.BalanceProjectionRepository;
+import com.kelvin.settlesense.domain.repository.ExpenseRepository;
 import com.kelvin.settlesense.domain.repository.GroupRepository;
+import com.kelvin.settlesense.domain.repository.SettlementRepository;
 import com.kelvin.settlesense.domain.repository.UserRepository;
 import com.kelvin.settlesense.domain.service.AddGroupMemberCommand;
 import com.kelvin.settlesense.domain.service.BalanceProjectionService;
@@ -37,7 +44,7 @@ import com.kelvin.settlesense.domain.service.ExpenseWorkflowService;
 import com.kelvin.settlesense.domain.service.GroupWorkflowService;
 import com.kelvin.settlesense.domain.service.PostExpenseCommand;
 import com.kelvin.settlesense.domain.service.PostSettlementCommand;
-import com.kelvin.settlesense.domain.service.RegisterUserCommand;
+import com.kelvin.settlesense.domain.model.dto.RegisterUserDto;
 import com.kelvin.settlesense.domain.service.SettlementWorkflowService;
 import com.kelvin.settlesense.domain.service.SimplifiedSettlement;
 import com.kelvin.settlesense.domain.service.UserWorkflowService;
@@ -47,10 +54,11 @@ class PhaseOneControllerTests {
 	@Test
 	void expenseControllerPostsExpenseThroughWorkflow() {
 		var workflow = mock(ExpenseWorkflowService.class);
+		var repository = mock(ExpenseRepository.class);
 		when(workflow.postExpense(any(PostExpenseCommand.class))).thenReturn(expense());
-		var controller = new ExpenseController(workflow);
+		var controller = new ExpenseController(workflow, repository);
 
-		var response = controller.postExpense(10L, new ExpenseController.PostExpenseRequest(1L, "Dinner", 100000,
+		var response = controller.postExpense(10L, new PostExpenseRequest(1L, "Dinner", 100000,
 				LocalDate.parse("2026-06-01"), 1L, SplitType.EQUAL, Map.of(1L, BigDecimal.ONE, 2L, BigDecimal.ONE)));
 
 		assertThat(response.id()).isEqualTo(100L);
@@ -62,10 +70,11 @@ class PhaseOneControllerTests {
 	@Test
 	void settlementControllerPostsSettlementThroughWorkflow() {
 		var workflow = mock(SettlementWorkflowService.class);
+		var repository = mock(SettlementRepository.class);
 		when(workflow.postSettlement(any(PostSettlementCommand.class))).thenReturn(settlement());
-		var controller = new SettlementController(workflow);
+		var controller = new SettlementController(workflow, repository);
 
-		var response = controller.postSettlement(10L, new SettlementController.PostSettlementRequest(2L, 1L, 50000,
+		var response = controller.postSettlement(10L, new PostSettlementRequest(2L, 1L, 50000,
 				LocalDate.parse("2026-06-02"), 2L));
 
 		assertThat(response.id()).isEqualTo(200L);
@@ -96,14 +105,14 @@ class PhaseOneControllerTests {
 	void userControllerRegistersUserThroughWorkflow() {
 		var workflow = mock(UserWorkflowService.class);
 		var repository = mock(UserRepository.class);
-		when(workflow.registerUser(any(RegisterUserCommand.class))).thenReturn(user());
+		when(workflow.registerUser(any(RegisterUserDto.class))).thenReturn(user());
 		var controller = new UserController(workflow, repository);
 
-		var response = controller.registerUser(new UserController.RegisterUserRequest("Kelvin", "kelvin@example.test"));
+		var response = controller.registerUser(new RegisterUserRequest("Kelvin", "kelvin@example.test", "password"));
 
 		assertThat(response.id()).isEqualTo(1L);
 		assertThat(response.status()).isEqualTo("ACTIVE");
-		verify(workflow).registerUser(new RegisterUserCommand("Kelvin", "kelvin@example.test"));
+		verify(workflow).registerUser(new RegisterUserDto("Kelvin", "kelvin@example.test", "password"));
 	}
 
 	@Test
@@ -114,9 +123,8 @@ class PhaseOneControllerTests {
 		when(workflow.addMember(any(AddGroupMemberCommand.class))).thenReturn(groupMember());
 		var controller = new GroupController(workflow, repository);
 
-		var groupResponse = controller.createGroup(new GroupController.CreateGroupRequest("Trip", "inr", 1L));
-		var memberResponse = controller.addMember(10L,
-				new GroupController.AddMemberRequest(2L, 1L, GroupMemberRole.MEMBER));
+		var groupResponse = controller.createGroup(new CreateGroupRequest("Trip", "inr", 1L));
+		var memberResponse = controller.addMember(10L, new AddMemberRequest(2L, 1L, GroupMemberRole.MEMBER));
 
 		assertThat(groupResponse.id()).isEqualTo(10L);
 		assertThat(groupResponse.currencyCode()).isEqualTo("INR");

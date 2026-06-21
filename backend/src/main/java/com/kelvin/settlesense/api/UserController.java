@@ -1,24 +1,27 @@
 package com.kelvin.settlesense.api;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kelvin.settlesense.domain.model.User;
+import com.kelvin.settlesense.domain.model.dto.RegisterUserRequest;
+import com.kelvin.settlesense.domain.model.dto.UpdateUserRequest;
+import com.kelvin.settlesense.domain.model.dto.UserResponse;
 import com.kelvin.settlesense.domain.repository.UserRepository;
-import com.kelvin.settlesense.domain.service.RegisterUserCommand;
 import com.kelvin.settlesense.domain.service.UserWorkflowService;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 
 @RestController
 @RequestMapping("/api/users")
@@ -52,15 +55,20 @@ class UserController {
 				.orElseThrow(() -> new IllegalArgumentException("user not found"));
 	}
 
-	record RegisterUserRequest(@NotBlank String displayName, @NotBlank @Email String email) {
-		RegisterUserCommand toCommand() {
-			return new RegisterUserCommand(displayName, email);
+	@PutMapping("/{userId}")
+	UserResponse updateUser(@PathVariable Long userId, @Valid @RequestBody UpdateUserRequest request) {
+		var actorUserId = currentUserId(userId);
+		if (!Objects.equals(actorUserId, userId)) {
+			throw new IllegalArgumentException("cannot update another user");
 		}
+		return UserResponse.from(userWorkflowService.updateUser(userId, request.displayName()));
 	}
 
-	record UserResponse(Long id, String displayName, String email, String status) {
-		static UserResponse from(User user) {
-			return new UserResponse(user.getId(), user.getDisplayName(), user.getEmail(), user.getStatus().name());
+	private Long currentUserId(Long fallbackUserId) {
+		var authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (authentication != null && authentication.getPrincipal() instanceof User user && user.getId() != null) {
+			return user.getId();
 		}
+		return fallbackUserId;
 	}
 }

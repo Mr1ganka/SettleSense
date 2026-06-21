@@ -2,9 +2,12 @@ package com.kelvin.settlesense.api;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,70 +17,53 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kelvin.settlesense.domain.model.Expense;
 import com.kelvin.settlesense.domain.model.SplitType;
+import com.kelvin.settlesense.domain.model.dto.CancelMoneyActionRequest;
+import com.kelvin.settlesense.domain.model.dto.ExpenseResponse;
+import com.kelvin.settlesense.domain.model.dto.PostExpenseRequest;
+import com.kelvin.settlesense.domain.repository.ExpenseRepository;
 import com.kelvin.settlesense.domain.service.ExpenseWorkflowService;
-import com.kelvin.settlesense.domain.service.PostExpenseCommand;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 
 @RestController
 @RequestMapping("/api")
 class ExpenseController {
 
 	private final ExpenseWorkflowService expenseWorkflowService;
+	private final ExpenseRepository expenseRepository;
 
-	ExpenseController(ExpenseWorkflowService expenseWorkflowService) {
+	ExpenseController(ExpenseWorkflowService expenseWorkflowService, ExpenseRepository expenseRepository) {
 		this.expenseWorkflowService = expenseWorkflowService;
+		this.expenseRepository = expenseRepository;
+	}
+
+	@GetMapping("/groups/{groupId}/expenses")
+	List<ExpenseResponse> listExpenses(@PathVariable Long groupId) {
+		return expenseRepository.findByGroupIdOrderByIdDesc(groupId).stream()
+				.map(ExpenseResponse::from)
+				.toList();
 	}
 
 	@PostMapping("/groups/{groupId}/expenses")
 	@ResponseStatus(HttpStatus.CREATED)
 	ExpenseResponse postExpense(@PathVariable Long groupId, @Valid @RequestBody PostExpenseRequest request) {
-		var expense = expenseWorkflowService.postExpense(request.toCommand(groupId));
+		var expense = expenseWorkflowService.postExpense(request.toCommand(groupId, currentUserId(request.createdByUserId())));
 		return ExpenseResponse.from(expense);
 	}
 
 	@PostMapping("/expenses/{expenseId}/cancel")
 	ExpenseResponse cancelExpense(@PathVariable Long expenseId, @Valid @RequestBody CancelMoneyActionRequest request) {
-		var expense = expenseWorkflowService.cancelExpense(expenseId, request.actorUserId(), request.reason());
+		var expense = expenseWorkflowService.cancelExpense(expenseId, currentUserId(request.actorUserId()),
+				request.reason());
 		return ExpenseResponse.from(expense);
 	}
 
-	record PostExpenseRequest(
-			@NotNull Long paidByUserId,
-			@NotBlank String description,
-			@Positive long totalMinor,
-			@NotNull LocalDate expenseDate,
-			@NotNull Long createdByUserId,
-			@NotNull SplitType splitType,
-			@NotEmpty Map<Long, BigDecimal> splitInputsByUserId) {
-
-		PostExpenseCommand toCommand(Long groupId) {
-			return new PostExpenseCommand(groupId, paidByUserId, description, totalMinor, expenseDate, createdByUserId,
-					splitType, splitInputsByUserId);
+	private Long currentUserId(Long fallbackUserId) {
+		var authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (authentication != null && authentication.getPrincipal() instanceof com.kelvin.settlesense.domain.model.User user
+				&& user.getId() != null) {
+			return user.getId();
 		}
-	}
-
-	record CancelMoneyActionRequest(@NotNull Long actorUserId, String reason) {
-	}
-
-	record ExpenseResponse(
-			Long id,
-			Long groupId,
-			Long paidByUserId,
-			String description,
-			String currencyCode,
-			long totalMinor,
-			LocalDate expenseDate,
-			String status) {
-
-		static ExpenseResponse from(Expense expense) {
-			return new ExpenseResponse(expense.getId(), expense.getGroupId(), expense.getPaidByUserId(),
-					expense.getDescription(), expense.getCurrencyCode(), expense.getTotalMinor(), expense.getExpenseDate(),
-					expense.getStatus().name());
-		}
+		return fallbackUserId;
 	}
 }

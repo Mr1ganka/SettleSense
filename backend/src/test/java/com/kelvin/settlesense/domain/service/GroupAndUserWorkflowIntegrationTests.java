@@ -16,6 +16,7 @@ import com.kelvin.settlesense.domain.model.GroupMemberStatus;
 import com.kelvin.settlesense.domain.model.GroupStatus;
 import com.kelvin.settlesense.domain.model.User;
 import com.kelvin.settlesense.domain.model.UserStatus;
+import com.kelvin.settlesense.domain.model.dto.RegisterUserDto;
 import com.kelvin.settlesense.domain.repository.ActivityEventRepository;
 import com.kelvin.settlesense.domain.repository.BalanceProjectionRepository;
 import com.kelvin.settlesense.domain.repository.ExpenseRepository;
@@ -89,12 +90,12 @@ class GroupAndUserWorkflowIntegrationTests {
 
 	@Test
 	void userRegistrationNormalizesEmailAndRejectsDuplicates() {
-		var registered = userWorkflowService.registerUser(new RegisterUserCommand(" Kelvin ", "KELVIN@example.test"));
+		var registered = userWorkflowService.registerUser(new RegisterUserDto(" Kelvin ", "KELVIN@example.test", "password"));
 
 		assertThat(registered.getDisplayName()).isEqualTo("Kelvin");
 		assertThat(registered.getEmail()).isEqualTo("kelvin@example.test");
 		assertThat(registered.getStatus()).isEqualTo(UserStatus.ACTIVE);
-		assertThatThrownBy(() -> userWorkflowService.registerUser(new RegisterUserCommand("Other", "kelvin@example.test")))
+		assertThatThrownBy(() -> userWorkflowService.registerUser(new RegisterUserDto("Other", "kelvin@example.test", "password")))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("user email already exists");
 	}

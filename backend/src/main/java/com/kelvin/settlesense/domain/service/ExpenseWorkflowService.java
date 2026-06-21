@@ -2,7 +2,11 @@ package com.kelvin.settlesense.domain.service;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Objects;
 
+import com.kelvin.settlesense.exceptions.ExpenseUpdateException;
+import com.kelvin.settlesense.exceptions.GroupUpdateException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,9 +58,9 @@ public class ExpenseWorkflowService {
 	public Expense postExpense(PostExpenseCommand command) {
 		var now = clock.instant();
 		var group = groupRepository.findById(command.groupId())
-				.orElseThrow(() -> new IllegalArgumentException("group not found"));
+				.orElseThrow(() -> new GroupUpdateException("group not found"));
 		if (group.getStatus() != GroupStatus.ACTIVE) {
-			throw new IllegalArgumentException("group must be active");
+			throw new GroupUpdateException(("group must be active"));
 		}
 		requireActiveMember(command.groupId(), command.paidByUserId(), "payer");
 		requireActiveMember(command.groupId(), command.createdByUserId(), "creator");
@@ -94,10 +98,14 @@ public class ExpenseWorkflowService {
 	public Expense cancelExpense(Long expenseId, Long cancelledByUserId, String reason) {
 		var now = clock.instant();
 		var expense = expenseRepository.findById(expenseId)
-				.orElseThrow(() -> new IllegalArgumentException("expense not found"));
+				.orElseThrow(() -> new ExpenseUpdateException("expense not found"));
 		if (expense.getStatus() == ExpenseStatus.CANCELLED) {
-			throw new IllegalArgumentException("expense is already cancelled");
+			throw new ExpenseUpdateException("expense is already cancelled");
 		}
+		long expenseCreatedByUserId = expense.getCreatedByUserId();
+		if(!Objects.equals(cancelledByUserId, expenseCreatedByUserId))
+			throw  new ExpenseUpdateException(String.format("Expense created by: %d and actorUserId: %d don't match", expenseCreatedByUserId, cancelledByUserId));
+
 		requireActiveMember(expense.getGroupId(), cancelledByUserId, "cancelling user");
 
 		expense.setStatus(ExpenseStatus.CANCELLED);

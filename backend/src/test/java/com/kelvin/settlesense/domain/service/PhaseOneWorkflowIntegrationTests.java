@@ -134,7 +134,7 @@ class PhaseOneWorkflowIntegrationTests {
 				.extracting("fromUserId", "toUserId", "amountMinor")
 				.containsExactly(org.assertj.core.groups.Tuple.tuple(userB.getId(), userA.getId(), 30000L));
 
-		settlementWorkflowService.cancelSettlement(settlement.getId(), userA.getId(), "wrong payment");
+		settlementWorkflowService.cancelSettlement(settlement.getId(), userB.getId(), "wrong payment");
 		assertThat(balanceProjectionRepository.findByGroupIdOrderByFromUserIdAscToUserIdAsc(group.getId()))
 				.extracting("fromUserId", "toUserId", "amountMinor")
 				.containsExactly(org.assertj.core.groups.Tuple.tuple(userB.getId(), userA.getId(), 50000L));

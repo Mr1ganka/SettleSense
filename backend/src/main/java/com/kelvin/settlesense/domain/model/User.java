@@ -40,4 +40,7 @@ public class User {
 
 	@Column(name = "updated_at", nullable = false)
 	private Instant updatedAt;
+
+	@Column(name = "password_hash", nullable = false)
+	private String passwordHash;
 }

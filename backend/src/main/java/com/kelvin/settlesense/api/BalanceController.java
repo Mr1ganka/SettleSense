@@ -7,10 +7,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.kelvin.settlesense.domain.model.BalanceProjection;
 import com.kelvin.settlesense.domain.repository.BalanceProjectionRepository;
 import com.kelvin.settlesense.domain.service.BalanceProjectionService;
-import com.kelvin.settlesense.domain.service.SimplifiedSettlement;
+import com.kelvin.settlesense.domain.model.dto.BalanceResponse;
+import com.kelvin.settlesense.domain.model.dto.SimplifiedSettlementResponse;
 
 @RestController
 @RequestMapping("/api/groups/{groupId}")
@@ -38,19 +38,5 @@ class BalanceController {
 		return balanceProjectionService.suggestSimplifiedSettlements(projections).stream()
 				.map(SimplifiedSettlementResponse::from)
 				.toList();
-	}
-
-	record BalanceResponse(Long fromUserId, Long toUserId, String currencyCode, long amountMinor) {
-		static BalanceResponse from(BalanceProjection projection) {
-			return new BalanceResponse(projection.getFromUserId(), projection.getToUserId(), projection.getCurrencyCode(),
-					projection.getAmountMinor());
-		}
-	}
-
-	record SimplifiedSettlementResponse(Long fromUserId, Long toUserId, String currencyCode, long amountMinor) {
-		static SimplifiedSettlementResponse from(SimplifiedSettlement settlement) {
-			return new SimplifiedSettlementResponse(settlement.fromUserId(), settlement.toUserId(),
-					settlement.currencyCode(), settlement.amountMinor());
-		}
 	}
 }

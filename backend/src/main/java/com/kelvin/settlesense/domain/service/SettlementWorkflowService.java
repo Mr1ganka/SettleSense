@@ -1,7 +1,9 @@
 package com.kelvin.settlesense.domain.service;
 
 import java.time.Clock;
+import java.util.Objects;
 
+import com.kelvin.settlesense.exceptions.ExpenseUpdateException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -82,6 +84,11 @@ public class SettlementWorkflowService {
 		if (settlement.getStatus() == SettlementStatus.CANCELLED) {
 			throw new IllegalArgumentException("settlement is already cancelled");
 		}
+
+		long settlementCreatedBy = settlement.getCreatedByUserId();
+		if(!Objects.equals(cancelledByUserId, settlementCreatedBy))
+			throw  new ExpenseUpdateException(String.format("Expense created by: %d and actorUserId: %d don't match", settlementCreatedBy, cancelledByUserId));
+
 		requireActiveMember(settlement.getGroupId(), cancelledByUserId, "cancelling user");
 
 		settlement.setStatus(SettlementStatus.CANCELLED);
