@@ -299,3 +299,17 @@ This document details what has been implemented and what remains to be done for 
 3. Currency conversion
 4. Receipt scanning (OCR)
 5. Analytics and insights
+## Update - Redis Rate Limiting Added (2026-06-22)
+
+### Backend
+- ✅ Redis-backed token bucket rate limiting for `GET /api/users` and `GET /api/groups`
+- ✅ `RateLimitFilter` and `RedisTokenBucketRateLimiter`
+- ✅ Unit tests for limiter and filter wiring
+
+### Docker
+- ✅ Added Redis 7 Alpine service to `docker/docker-compose.yml`
+- ✅ Named Redis volume for persistence
+
+### Remaining Notes
+- The first implementation is fail-open when Redis is unavailable to favor availability for these read endpoints.
+- The rate limiter is intentionally scoped to the two high-traffic list endpoints in phase 2.3.

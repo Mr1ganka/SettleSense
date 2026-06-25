@@ -197,3 +197,9 @@ The Friendship entity exists but has limited functionality:
 12. Caching layer
 13. Docker deployment
 14. CI/CD pipeline
+## Phase 2 Update - Rate Limiting Completed (2026-06-22)
+
+- ✅ **Rate Limiting** moved to IMPLEMENTATION_DONE.md
+- ✅ Redis-backed limiter, filter wiring, Docker service, and tests are now implemented
+
+Remaining security work should now focus on future enhancements such as input sanitization, observability, and any additional auth hardening that comes up later.

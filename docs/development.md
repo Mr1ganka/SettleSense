@@ -9,13 +9,13 @@
 
 ## Local Infrastructure
 
-Start Postgres:
+Start local infrastructure (Postgres + Redis):
 
 ```powershell
 docker compose -f docker/docker-compose.yml up -d
 ```
 
-Stop Postgres:
+Stop local infrastructure:
 
 ```powershell
 docker compose -f docker/docker-compose.yml down
@@ -37,7 +37,7 @@ cd backend
 .\gradlew.bat bootRun
 ```
 
-The default API config expects Postgres on `localhost:5432` with database, username, and password all set to `settlesense`.
+The default API config expects Postgres on `localhost:5432` with database, username, and password all set to `settlesense`, plus Redis on `localhost:6379`.
 
 ## Frontend
 

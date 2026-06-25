@@ -243,3 +243,22 @@ The backend implements a complete Phase 1 expense management system with proper 
 
 ### Services
 - ✅ **AuthWorkflowService** - Shell service for auth logic
+## Phase 2 Update - Rate Limiting (2026-06-22)
+
+### Security
+- ✅ **RedisTokenBucketRateLimiter** - Redis-backed token bucket enforcement for the targeted read endpoints
+- ✅ **RateLimitFilter** - Enforces `429 Too Many Requests` on `GET /api/users` and `GET /api/groups`
+- ✅ **SecurityConfig** - Registers the rate limit filter after JWT authentication
+
+### Infrastructure
+- ✅ **Redis Docker service** - Added to `docker/docker-compose.yml`
+- ✅ **Redis configuration** - Added application defaults for local and containerized development
+
+### Testing
+- ✅ **RedisTokenBucketRateLimiterTests**
+- ✅ **RateLimitFilterTests**
+
+### Design Notes
+- Redis was chosen so rate limiting works across multiple app instances.
+- Token bucket was chosen to allow controlled bursts instead of a strict fixed window.
+- The implementation fails open if Redis is unavailable, which favors availability for these read endpoints.

@@ -368,7 +368,7 @@ A feature is complete when:
 
 ## Phase 2: Authentication & Authorization
 
-*Status: ðŸŸ¡ IN PROGRESS*
+*Status: ✅ COMPLETE*
 
 ### 2.1 User Login & JWT
 
@@ -466,11 +466,24 @@ Authenticated requests now use the JWT principal as the actor, so client-supplie
 - [x] Non-owner cannot remove members or archive group
 
 ### 2.3 Rate Limiting
-**Status: âŒ Not Implemented**
+**Status: ✅ Completed**
 
-**Affected Endpoints:**
-- `GET /api/groups` - Returns all
-- `GET /api/users` - Returns all
+**Completed:**
+- ✅ Redis-backed token bucket rate limiting
+- ✅ Applied only to `GET /api/users` and `GET /api/groups`
+- ✅ Keyed by authenticated user when available, otherwise client IP
+- ✅ `429 Too Many Requests` response with `Retry-After`
+- ✅ Unit tests for the limiter and filter wiring
+
+**Design Decisions:**
+- Redis chosen so the limiter works across multiple application instances
+- Token bucket chosen over fixed-window counting to allow controlled bursts
+- Implementation is fail-open if Redis is unavailable, so the API remains usable if the rate-limit store blips
+
+**Remaining Limitations:**
+- No per-endpoint policy differentiation yet
+- No dashboard/metrics around rate-limit events yet
+- Depends on Redis availability for enforcement
 
 ### 3.2 Filtering & Search
 
@@ -608,15 +621,16 @@ Authenticated requests now use the JWT principal as the actor, so client-supplie
 | JWT security filter | âœ… Complete |
 | Auth unit tests | âœ… Complete |
 | Resource authorization | ✅ Complete |
+| Rate limiting | ✅ Complete |
 
 ### ✅ Implemented / Complete
 
 | Feature | Priority |
 |---------|----------|
 | Resource authorization | ✅ Complete |
+| Rate limiting | ✅ Complete |
 | Pagination | MEDIUM |
 | Filtering/Search | MEDIUM |
-| Rate limiting | MEDIUM |
 | OpenAPI docs | MEDIUM |
 | Group invitations | MEDIUM |
 | Friendship accept/reject | MEDIUM |
@@ -639,9 +653,8 @@ Authenticated requests now use the JWT principal as the actor, so client-supplie
 
 ### Short-term (Next)
 
-3. Rate limiting
-4. Expense list endpoint with pagination
-5. OpenAPI documentation
+3. Expense list endpoint with pagination
+4. OpenAPI documentation
 
 ### Medium-term (After that)
 

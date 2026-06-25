@@ -418,3 +418,41 @@ Create new ADRs when introducing:
 - Monitoring and observability
 - Cloud infrastructure
 - CI/CD pipeline
+### ADR-009: Redis-Backed Token Bucket Rate Limiting
+
+| Attribute | Value |
+|-----------|-------|
+| Status    | Accepted |
+| Date      | 2026-06-22 |
+
+**Decision:**  
+Use Redis-backed token bucket rate limiting for the targeted read endpoints in phase 2.3.
+
+**Context:**  
+The application is moving toward multi-instance deployment. In-memory rate limiting would diverge between nodes and fail to provide consistent throttling.
+
+**Alternatives Considered**
+
+| Option | In-memory limiter |
+|--------|--------------------|
+| Pros   | Simple, no extra infrastructure |
+| Cons   | Not shared across instances, resets on restart, inconsistent under load balancing |
+| Decision | **Rejected** |
+
+| Option | Redis-backed token bucket |
+|--------|---------------------------|
+| Pros   | Shared across instances, atomic updates with Lua, supports controlled bursts |
+| Cons   | Requires Redis, adds network dependency and operational cost |
+| Decision | **Accepted** |
+
+**Trade-offs**
+
+Accepted:
+- Additional infrastructure dependency
+- Slight request latency from Redis calls
+- A deliberate fail-open policy for Redis outages on the limited read endpoints
+
+Benefits:
+- Consistent enforcement across app instances
+- Flexible burst handling
+- Easy future extension to more endpoints or policies
