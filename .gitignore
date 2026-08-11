@@ -4,6 +4,7 @@ build/
 !**/gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+/.agents
 
 ### React / Node ###
 node_modules/
@@ -43,3 +44,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### graphify ###
+/graphify-out

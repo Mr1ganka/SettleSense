@@ -48,6 +48,14 @@ public class Expense {
 	@Column(name = "status", nullable = false, length = 40)
 	private ExpenseStatus status = ExpenseStatus.POSTED;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "category", nullable = false, length = 50)
+	private ExpenseCategory category = ExpenseCategory.GENERAL;
+
+	@Column(name = "receipt_url", length = 500)
+	private String receiptUrl;
+
+
 	@Column(name = "created_by_user_id", nullable = false)
 	private Long createdByUserId;
 

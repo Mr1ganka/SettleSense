@@ -46,6 +46,35 @@ class LedgerAndBalanceServiceTests {
 	}
 
 	@Test
+	void multiPayerExpenseGeneratesCorrectNetLedgerEntriesAndBalances() {
+		// Total 100,000 (INR 1,000.00)
+		// User 1 paid 60,000 (INR 600.00), User 2 paid 40,000 (INR 400.00)
+		// Split 3-way: User 1 owes 33,400, User 2 owes 33,300, User 3 owes 33,300
+		var expense = expense(200L, 1L, 1L, 100000);
+		var payerInputs = java.util.Map.of(1L, 60000L, 2L, 40000L);
+		var splits = List.of(split(200L, 1L, 33400), split(200L, 2L, 33300), split(200L, 3L, 33300));
+
+		var entries = ledgerService.entriesForMultiPayerExpense(expense, payerInputs, splits, NOW);
+		var balances = balanceService.rebuild(1L, "INR", entries, CLOCK);
+
+		// Net positions:
+		// User 1: paid 60000 - owed 33400 = +26600 (creditor)
+		// User 2: paid 40000 - owed 33300 = +6700 (creditor)
+		// User 3: paid 0 - owed 33300 = -33300 (debtor)
+		assertThat(entries).hasSize(2);
+		assertThat(balances).hasSize(2);
+
+		var u3ToU1 = balances.stream().filter(b -> b.getFromUserId().equals(3L) && b.getToUserId().equals(1L)).findFirst();
+		var u3ToU2 = balances.stream().filter(b -> b.getFromUserId().equals(3L) && b.getToUserId().equals(2L)).findFirst();
+
+		assertThat(u3ToU1).isPresent();
+		assertThat(u3ToU1.get().getAmountMinor()).isEqualTo(26600);
+		assertThat(u3ToU2).isPresent();
+		assertThat(u3ToU2.get().getAmountMinor()).isEqualTo(6700);
+	}
+
+
+	@Test
 	void settlementReducesBalanceAndOverSettlementReversesDirection() {
 		var expenseEntry = LedgerEntry.of(1L, LedgerSourceType.EXPENSE, 100L, 2L, 1L, "INR", 50000,
 				LedgerDirection.OWES, NOW);

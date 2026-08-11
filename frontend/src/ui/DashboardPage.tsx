@@ -3,6 +3,7 @@ import {
   addGroupMember,
   createGroup,
   listBalances,
+  listExpenses,
   listGroupMembers,
   listGroups,
   listSettlementSuggestions,
@@ -10,11 +11,15 @@ import {
   postExpense,
   postSettlement,
   registerUser,
+  uploadReceipt,
   type Balance,
+  type Expense,
+  type ExpenseCategory,
   type Group,
   type GroupMember,
   type User,
 } from '../api/domain';
+
 import { getSystemStatus, type SystemStatus } from '../api/system';
 
 const today = new Date().toISOString().slice(0, 10);
@@ -41,6 +46,9 @@ export function DashboardPage() {
   const [notice, setNotice] = useState<string>('Ready');
   const [error, setError] = useState<string | null>(null);
 
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory>('GENERAL');
+
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? null;
   const activeMembers = members.filter((member) => member.status === 'ACTIVE');
   const memberUsers = activeMembers
@@ -58,20 +66,24 @@ export function DashboardPage() {
     const nextGroupId = groupId ?? nextGroups[0]?.id ?? null;
     setSelectedGroupId(nextGroupId);
     if (nextGroupId) {
-      const [nextMembers, nextBalances, nextSuggestions] = await Promise.all([
+      const [nextMembers, nextBalances, nextSuggestions, nextExpenses] = await Promise.all([
         listGroupMembers(nextGroupId),
         listBalances(nextGroupId),
         listSettlementSuggestions(nextGroupId),
+        listExpenses(nextGroupId),
       ]);
       setMembers(nextMembers);
       setBalances(nextBalances);
       setSuggestions(nextSuggestions);
+      setExpenses(nextExpenses);
     } else {
       setMembers([]);
       setBalances([]);
       setSuggestions([]);
+      setExpenses([]);
     }
   }, []);
+
 
   useEffect(() => {
     Promise.all([getSystemStatus(), refreshAll(null)])
@@ -152,27 +164,54 @@ export function DashboardPage() {
     );
   }
 
+  const [splitType, setSplitType] = useState<'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES'>('EQUAL');
+  const [customSplitValues, setCustomSplitValues] = useState<Record<number, string>>({});
+
   async function handlePostExpense(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedGroupId) return;
     const form = new FormData(event.currentTarget);
     const paidByUserId = Number(form.get('paidByUserId'));
-    const splitInputsByUserId = Object.fromEntries(activeMembers.map((member) => [String(member.userId), 1]));
+
+    let splitInputsByUserId: Record<string, number> = {};
+    if (splitType === 'EQUAL') {
+      splitInputsByUserId = Object.fromEntries(activeMembers.map((member) => [String(member.userId), 1]));
+    } else if (splitType === 'EXACT') {
+      splitInputsByUserId = Object.fromEntries(
+        activeMembers.map((m) => [String(m.userId), toMinorUnits(customSplitValues[m.userId] || '0')]),
+      );
+    } else if (splitType === 'PERCENTAGE' || splitType === 'SHARES') {
+      splitInputsByUserId = Object.fromEntries(
+        activeMembers.map((m) => [String(m.userId), Number(customSplitValues[m.userId] || '0')]),
+      );
+    }
+
     await runAction(
       () =>
         postExpense(selectedGroupId, {
           paidByUserId,
           description: String(form.get('description')),
+          category: selectedCategory,
           totalMinor: toMinorUnits(String(form.get('amount'))),
           expenseDate: String(form.get('expenseDate')),
           createdByUserId: paidByUserId,
-          splitType: 'EQUAL',
+          splitType,
           splitInputsByUserId,
         }),
       'Expense posted',
     );
     event.currentTarget.reset();
+    setCustomSplitValues({});
   }
+
+  async function handleFileUpload(expenseId: number, file: File) {
+    await runAction(
+      () => uploadReceipt(expenseId, file),
+      'Receipt attached',
+    );
+  }
+
+
 
   async function handlePostSettlement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -292,26 +331,78 @@ export function DashboardPage() {
             </div>
 
             <div>
-              <h3>Equal Expense</h3>
+              <h3>Post Expense</h3>
               <form className="form-stack" onSubmit={handlePostExpense}>
                 <input name="description" placeholder="Description" required />
                 <div className="form-row">
                   <input min="0.01" name="amount" placeholder="Amount" step="0.01" type="number" required />
                   <input name="expenseDate" type="date" defaultValue={today} required />
                 </div>
-                <select name="paidByUserId" required>
-                  <option value="">Paid by</option>
-                  {memberUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.displayName}
-                    </option>
-                  ))}
-                </select>
+                <div className="form-row">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value as ExpenseCategory)}
+                  >
+                    <option value="GENERAL">General</option>
+                    <option value="FOOD">Food & Dining</option>
+                    <option value="TRAVEL">Travel & Transit</option>
+                    <option value="UTILITIES">Utilities & Bills</option>
+                    <option value="RENT">Rent & Housing</option>
+                    <option value="ENTERTAINMENT">Entertainment</option>
+                    <option value="SHOPPING">Shopping</option>
+                  </select>
+                  <select name="paidByUserId" required>
+                    <option value="">Paid by</option>
+                    {memberUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={splitType}
+                    onChange={(e) => setSplitType(e.target.value as any)}
+                    id="split-type-select"
+                  >
+                    <option value="EQUAL">Split Equally</option>
+                    <option value="EXACT">Split by Exact Amounts</option>
+                    <option value="PERCENTAGE">Split by Percentages</option>
+                    <option value="SHARES">Split by Share Ratios</option>
+                  </select>
+                </div>
+
+
+                {splitType !== 'EQUAL' && (
+                  <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <small style={{ fontWeight: 700, color: '#2c3e50' }}>
+                      {splitType === 'EXACT' && 'Enter exact amount per person:'}
+                      {splitType === 'PERCENTAGE' && 'Enter percentage per person (must total 100%):'}
+                      {splitType === 'SHARES' && 'Enter share count per person:'}
+                    </small>
+                    {memberUsers.map((user) => (
+                      <div key={user.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.86rem', flex: 1 }}>{user.displayName}:</span>
+                        <input
+                          style={{ width: '120px', minHeight: '32px' }}
+                          type="number"
+                          step={splitType === 'EXACT' ? '0.01' : '1'}
+                          placeholder={splitType === 'EXACT' ? '0.00' : splitType === 'PERCENTAGE' ? '33.3' : '1'}
+                          value={customSplitValues[user.id] || ''}
+                          onChange={(e) =>
+                            setCustomSplitValues({ ...customSplitValues, [user.id]: e.target.value })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <button type="submit" disabled={activeMembers.length < 2}>
                   Post Expense
                 </button>
               </form>
             </div>
+
 
             <div>
               <h3>Settlement</h3>
@@ -378,6 +469,72 @@ export function DashboardPage() {
           </ul>
         </section>
       </div>
+
+
+      <div className="work-grid" style={{ marginTop: '20px' }}>
+        <section className="panel">
+          <h2>Expenses & Receipts</h2>
+
+          <ul className="data-list">
+            {expenses.length === 0 ? <li><span>No expenses posted yet</span></li> : null}
+            {expenses.map((expense) => (
+              <li key={expense.id} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong>{expense.description}</strong>
+                    <span className="pill" style={{ marginLeft: '8px', fontSize: '0.72rem', background: '#e2e8f0', color: '#334155' }}>
+                      {expense.category}
+                    </span>
+                  </div>
+                  <strong>{formatMoney(expense.totalMinor, expense.currencyCode)}</strong>
+                </div>
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#64748b' }}>
+                  <span>Paid by {userName(expense.paidByUserId)} on {expense.expenseDate}</span>
+                  {expense.receiptUrl ? (
+                    <a href={expense.receiptUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>
+                      View Receipt 📎
+                    </a>
+                  ) : (
+                    <label style={{ cursor: 'pointer', color: '#2563eb', fontWeight: 600 }}>
+                      + Attach Receipt
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            void handleFileUpload(expense.id, e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="panel">
+          <h2>Category Breakdown</h2>
+          <ul className="data-list">
+            {expenses.length === 0 ? <li><span>No category data available</span></li> : null}
+            {Object.entries(
+              expenses.reduce<Record<string, number>>((acc, exp) => {
+                const cat = exp.category || 'GENERAL';
+                acc[cat] = (acc[cat] || 0) + exp.totalMinor;
+                return acc;
+              }, {}),
+            ).map(([cat, totalMinor]) => (
+              <li key={cat}>
+                <span>{cat}</span>
+                <strong>{formatMoney(totalMinor, selectedGroup?.currencyCode || 'INR')}</strong>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
     </section>
   );
 }
+

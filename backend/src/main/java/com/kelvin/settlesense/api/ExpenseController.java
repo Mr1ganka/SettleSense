@@ -58,6 +58,22 @@ class ExpenseController {
 		return ExpenseResponse.from(expense);
 	}
 
+	@org.springframework.web.bind.annotation.PutMapping("/expenses/{expenseId}")
+	ExpenseResponse editExpense(@PathVariable Long expenseId, @Valid @RequestBody com.kelvin.settlesense.domain.model.dto.UpdateExpenseRequest request) {
+		var expense = expenseWorkflowService.editExpense(request.toCommand(expenseId, currentUserId(request.actorUserId())));
+		return ExpenseResponse.from(expense);
+	}
+
+	@PostMapping("/expenses/{expenseId}/receipt")
+	ExpenseResponse uploadReceipt(@PathVariable Long expenseId,
+			@org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
+		Long actorId = currentUserId(null);
+		var expense = expenseWorkflowService.attachReceipt(expenseId, actorId, file.getOriginalFilename(), file.getBytes());
+		return ExpenseResponse.from(expense);
+	}
+
+
+
 	private Long currentUserId(Long fallbackUserId) {
 		var authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (authentication != null && authentication.getPrincipal() instanceof com.kelvin.settlesense.domain.model.User user

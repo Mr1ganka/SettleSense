@@ -40,6 +40,18 @@ class ApiExceptionHandler {
 		return new ErrorResponse(exception.getMessage());
 	}
 
+	@ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+	@ResponseStatus(HttpStatus.FORBIDDEN)
+	ErrorResponse accessDenied(org.springframework.security.access.AccessDeniedException exception) {
+		return new ErrorResponse(exception.getMessage());
+	}
+
+	@ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+	@ResponseStatus(HttpStatus.UNAUTHORIZED)
+	ErrorResponse springBadCredentials(org.springframework.security.authentication.BadCredentialsException exception) {
+		return new ErrorResponse(exception.getMessage());
+	}
+
 	@ExceptionHandler(BadCredentialsException.class)
 	@ResponseStatus(HttpStatus.UNAUTHORIZED)
 	ErrorResponse badCredentials(BadCredentialsException exception) {
@@ -61,3 +73,4 @@ class ApiExceptionHandler {
 	}
 
 }
+

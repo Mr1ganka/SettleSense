@@ -62,7 +62,12 @@ public class ExpenseWorkflowService {
 		if (group.getStatus() != GroupStatus.ACTIVE) {
 			throw new GroupUpdateException(("group must be active"));
 		}
-		requireActiveMember(command.groupId(), command.paidByUserId(), "payer");
+		if (command.payerInputsByUserId() != null && !command.payerInputsByUserId().isEmpty()) {
+			command.payerInputsByUserId().keySet()
+					.forEach(userId -> requireActiveMember(command.groupId(), userId, "payer participant"));
+		} else {
+			requireActiveMember(command.groupId(), command.paidByUserId(), "payer");
+		}
 		requireActiveMember(command.groupId(), command.createdByUserId(), "creator");
 		command.splitInputsByUserId().keySet()
 				.forEach(userId -> requireActiveMember(command.groupId(), userId, "split participant"));
@@ -72,11 +77,13 @@ public class ExpenseWorkflowService {
 		expense.setGroupId(group.getId());
 		expense.setPaidByUserId(command.paidByUserId());
 		expense.setDescription(command.description());
+		expense.setCategory(command.category() != null ? command.category() : com.kelvin.settlesense.domain.model.ExpenseCategory.GENERAL);
 		expense.setCurrencyCode(currencyCode);
 		expense.setTotalMinor(command.totalMinor());
 		expense.setExpenseDate(command.expenseDate());
 		expense.setStatus(ExpenseStatus.POSTED);
 		expense.setCreatedByUserId(command.createdByUserId());
+
 		expense.setCreatedAt(now);
 		expense.setUpdatedAt(now);
 		var savedExpense = expenseRepository.save(expense);
@@ -87,10 +94,66 @@ public class ExpenseWorkflowService {
 				.map(split -> toExpenseSplit(savedExpense.getId(), split, now))
 				.toList();
 		var savedSplits = expenseSplitRepository.saveAll(splitRows);
-		ledgerEntryRepository.saveAll(ledgerService.entriesForExpense(savedExpense, savedSplits, now));
+		ledgerEntryRepository.saveAll(ledgerService.entriesForMultiPayerExpense(savedExpense, command.payerInputsByUserId(), savedSplits, now));
 		activityEventRepository.save(ActivityEventFactory.event(group.getId(), command.createdByUserId(),
 				"EXPENSE_POSTED", "EXPENSE", savedExpense.getId(), "Expense posted", "{}", now));
 		balanceProjectionUpdater.refresh(group.getId(), currencyCode);
+		return savedExpense;
+
+	}
+
+	@Transactional
+	public Expense editExpense(UpdateExpenseCommand command) {
+		var now = clock.instant();
+		var expense = expenseRepository.findById(command.expenseId())
+				.orElseThrow(() -> new ExpenseUpdateException("expense not found"));
+		if (expense.getStatus() == ExpenseStatus.CANCELLED) {
+			throw new ExpenseUpdateException("cannot edit cancelled expense");
+		}
+
+		requireActiveMember(expense.getGroupId(), command.actorUserId(), "actor user");
+		if (command.payerInputsByUserId() != null && !command.payerInputsByUserId().isEmpty()) {
+			command.payerInputsByUserId().keySet()
+					.forEach(userId -> requireActiveMember(expense.getGroupId(), userId, "payer participant"));
+		} else {
+			requireActiveMember(expense.getGroupId(), command.paidByUserId(), "payer");
+		}
+		command.splitInputsByUserId().keySet()
+				.forEach(userId -> requireActiveMember(expense.getGroupId(), userId, "split participant"));
+
+		// 1. Fetch original ledger entries and generate compensating reversing ledger entries
+		var originalEntries = ledgerEntryRepository.findBySourceTypeAndSourceIdOrderByIdAsc(LedgerSourceType.EXPENSE,
+				expense.getId());
+		if (!originalEntries.isEmpty()) {
+			ledgerEntryRepository.saveAll(ledgerService.reversalEntries(originalEntries, expense.getId(), now));
+		}
+
+		// 2. Update expense entity
+		expense.setPaidByUserId(command.paidByUserId());
+		expense.setDescription(command.description());
+		expense.setTotalMinor(command.totalMinor());
+		expense.setExpenseDate(command.expenseDate());
+		expense.setUpdatedAt(now);
+		var savedExpense = expenseRepository.save(expense);
+
+		// 3. Clear old splits & calculate new splits
+		expenseSplitRepository.deleteByExpenseId(expense.getId());
+
+		var currencyCode = MoneyRules.normalizeCurrencyCode(expense.getCurrencyCode());
+		var calculatedSplits = splitCalculator.calculate(command.totalMinor(), currencyCode, command.splitType(),
+				command.splitInputsByUserId());
+		var splitRows = calculatedSplits.stream()
+				.map(split -> toExpenseSplit(savedExpense.getId(), split, now))
+				.toList();
+		var savedSplits = expenseSplitRepository.saveAll(splitRows);
+
+		// 4. Post new replacement ledger entries
+		ledgerEntryRepository.saveAll(ledgerService.entriesForMultiPayerExpense(savedExpense, command.payerInputsByUserId(), savedSplits, now));
+
+		// 5. Activity log and refresh balance projections
+		activityEventRepository.save(ActivityEventFactory.event(expense.getGroupId(), command.actorUserId(),
+				"EXPENSE_EDITED", "EXPENSE", savedExpense.getId(), "Expense updated in-place via reversing ledger", "{}", now));
+		balanceProjectionUpdater.refresh(expense.getGroupId(), currencyCode);
 		return savedExpense;
 	}
 
@@ -127,6 +190,32 @@ public class ExpenseWorkflowService {
 		return savedExpense;
 	}
 
+
+	@Transactional
+	public Expense attachReceipt(Long expenseId, Long actorUserId, String originalFilename, byte[] fileBytes) {
+		var expense = expenseRepository.findById(expenseId)
+				.orElseThrow(() -> new ExpenseUpdateException("expense not found"));
+		requireActiveMember(expense.getGroupId(), actorUserId, "actor user");
+
+		try {
+			var uploadPath = java.nio.file.Paths.get("uploads", "receipts");
+			if (!java.nio.file.Files.exists(uploadPath)) {
+				java.nio.file.Files.createDirectories(uploadPath);
+			}
+
+			String safeFilename = System.currentTimeMillis() + "_" + (originalFilename != null ? originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_") : "receipt.png");
+			var targetPath = uploadPath.resolve(safeFilename);
+			java.nio.file.Files.write(targetPath, fileBytes);
+
+			String receiptUrl = "/uploads/receipts/" + safeFilename;
+			expense.setReceiptUrl(receiptUrl);
+			expense.setUpdatedAt(clock.instant());
+			return expenseRepository.save(expense);
+		} catch (java.io.IOException e) {
+			throw new ExpenseUpdateException("Failed to store receipt image: " + e.getMessage());
+		}
+	}
+
 	private ExpenseSplit toExpenseSplit(Long expenseId, CalculatedSplit split, java.time.Instant now) {
 		var row = new ExpenseSplit();
 		row.setExpenseId(expenseId);
@@ -152,3 +241,4 @@ public class ExpenseWorkflowService {
 		return value.replace("\\", "\\\\").replace("\"", "\\\"");
 	}
 }
+

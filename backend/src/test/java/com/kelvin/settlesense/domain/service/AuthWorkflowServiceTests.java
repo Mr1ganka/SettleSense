@@ -24,6 +24,7 @@ class AuthWorkflowServiceTests {
     private JwtService jwtService;
     private UserRepository userRepository;
     private PasswordEncoder passwordEncoder;
+    private com.kelvin.settlesense.security.RefreshTokenService refreshTokenService;
     private AuthWorkflowService authService;
 
     @BeforeEach
@@ -31,7 +32,38 @@ class AuthWorkflowServiceTests {
         jwtService = mock(JwtService.class);
         userRepository = mock(UserRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        authService = new AuthWorkflowService(jwtService, userRepository, passwordEncoder);
+        refreshTokenService = mock(com.kelvin.settlesense.security.RefreshTokenService.class);
+        when(refreshTokenService.createRefreshToken(any(), any())).thenReturn("refresh-token");
+        authService = new AuthWorkflowService(jwtService, userRepository, passwordEncoder, refreshTokenService);
+    }
+
+
+    @Test
+    void authenticateReturnsAuthResponseForValidCredentials() {
+        // Given
+        String email = "test@example.com";
+        String password = "password123";
+        String hashedPassword = "$2a$12$hashedpassword";
+
+        User user = new User();
+        user.setId(100L);
+        user.setEmail(email);
+        user.setDisplayName("Test User");
+        user.setPasswordHash(hashedPassword);
+
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(password, hashedPassword)).thenReturn(true);
+        when(jwtService.generateTokenWithDisplayName(any(HashMap.class), eq(user)))
+                .thenReturn("jwt-token");
+
+        // When
+        var response = authService.authenticate(email, password);
+
+        // Then
+        assertThat(response.token()).isEqualTo("jwt-token");
+        assertThat(response.userId()).isEqualTo(100L);
+        assertThat(response.email()).isEqualTo(email);
+        assertThat(response.displayName()).isEqualTo("Test User");
     }
 
     @Test

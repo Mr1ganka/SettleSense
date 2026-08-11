@@ -3,33 +3,28 @@ package com.kelvin.settlesense.domain.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
-
-import com.kelvin.settlesense.domain.model.ExpenseCategory;
 import com.kelvin.settlesense.domain.model.SplitType;
 
-public record PostExpenseCommand(
-		Long groupId,
+public record UpdateExpenseCommand(
+		Long expenseId,
 		Long paidByUserId,
 		Map<Long, Long> payerInputsByUserId,
 		String description,
-		ExpenseCategory category,
 		long totalMinor,
 		LocalDate expenseDate,
-		Long createdByUserId,
+		Long actorUserId,
 		SplitType splitType,
 		Map<Long, BigDecimal> splitInputsByUserId) {
 
-	public PostExpenseCommand(
-			Long groupId,
+	public UpdateExpenseCommand(
+			Long expenseId,
 			Long paidByUserId,
 			String description,
 			long totalMinor,
 			LocalDate expenseDate,
-			Long createdByUserId,
+			Long actorUserId,
 			SplitType splitType,
 			Map<Long, BigDecimal> splitInputsByUserId) {
-		this(groupId, paidByUserId, null, description, ExpenseCategory.GENERAL, totalMinor, expenseDate, createdByUserId, splitType, splitInputsByUserId);
+		this(expenseId, paidByUserId, null, description, totalMinor, expenseDate, actorUserId, splitType, splitInputsByUserId);
 	}
 }
-
-

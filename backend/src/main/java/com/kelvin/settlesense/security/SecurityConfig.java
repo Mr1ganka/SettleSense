@@ -27,10 +27,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/users").permitAll()
                         .requestMatchers("/api/system/status").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated()
                 )
+
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )

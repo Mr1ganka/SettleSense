@@ -30,6 +30,8 @@ export type Balance = {
   amountMinor: number;
 };
 
+export type ExpenseCategory = 'GENERAL' | 'FOOD' | 'TRAVEL' | 'UTILITIES' | 'RENT' | 'ENTERTAINMENT' | 'SHOPPING';
+
 export type Expense = {
   id: number;
   groupId: number;
@@ -39,6 +41,8 @@ export type Expense = {
   totalMinor: number;
   expenseDate: string;
   status: string;
+  category: ExpenseCategory;
+  receiptUrl?: string;
 };
 
 export type Settlement = {
@@ -85,21 +89,35 @@ export function addGroupMember(groupId: number, input: { userId: number; actorUs
   });
 }
 
+export function listExpenses(groupId: number) {
+  return apiRequest<Expense[]>(`/api/groups/${groupId}/expenses`);
+}
+
 export function postExpense(
   groupId: number,
   input: {
     paidByUserId: number;
     description: string;
+    category?: ExpenseCategory;
     totalMinor: number;
     expenseDate: string;
     createdByUserId: number;
-    splitType: 'EQUAL';
+    splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
     splitInputsByUserId: Record<string, number>;
   },
 ) {
   return apiRequest<Expense>(`/api/groups/${groupId}/expenses`, {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+export function uploadReceipt(expenseId: number, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiRequest<Expense>(`/api/expenses/${expenseId}/receipt`, {
+    method: 'POST',
+    body: formData,
   });
 }
 
@@ -126,3 +144,4 @@ export function listBalances(groupId: number) {
 export function listSettlementSuggestions(groupId: number) {
   return apiRequest<Balance[]>(`/api/groups/${groupId}/settlement-suggestions`);
 }
+
