@@ -42,11 +42,17 @@ class UserController {
 	}
 
 	@GetMapping
-	List<UserResponse> users() {
+	List<UserResponse> users(@org.springframework.web.bind.annotation.RequestParam(required = false) String search) {
+		if (search != null && !search.trim().isEmpty()) {
+			return userRepository.searchUsers(search.trim()).stream()
+					.map(UserResponse::from)
+					.toList();
+		}
 		return userRepository.findAllByOrderByIdAsc().stream()
 				.map(UserResponse::from)
 				.toList();
 	}
+
 
 	@GetMapping("/{userId}")
 	UserResponse user(@PathVariable Long userId) {

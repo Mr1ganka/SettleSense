@@ -45,10 +45,17 @@ class GroupController {
 
 	@GetMapping
 	List<GroupResponse> groups() {
+		Long userId = currentUserId(null);
+		if (userId != null) {
+			return groupWorkflowService.findGroupsForUser(userId).stream()
+					.map(GroupResponse::from)
+					.toList();
+		}
 		return groupRepository.findAllByOrderByIdAsc().stream()
 				.map(GroupResponse::from)
 				.toList();
 	}
+
 
 	@GetMapping("/{groupId}")
 	GroupResponse group(@PathVariable Long groupId) {

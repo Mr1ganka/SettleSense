@@ -117,6 +117,16 @@ public class GroupWorkflowService {
 		return groupMemberRepository.findByGroupId(groupId);
 	}
 
+	@Transactional(readOnly = true)
+	public List<Group> findGroupsForUser(Long userId) {
+		List<GroupMember> memberships = groupMemberRepository.findByUserIdAndStatus(userId, GroupMemberStatus.ACTIVE);
+		List<Long> groupIds = memberships.stream().map(GroupMember::getGroupId).toList();
+		return groupRepository.findAllById(groupIds).stream()
+				.filter(g -> g.getStatus() == GroupStatus.ACTIVE)
+				.toList();
+	}
+
+
 	private GroupMember endMembership(Long groupId, Long userId, GroupMemberStatus status) {
 		var member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
 				.orElseThrow(() -> new IllegalArgumentException("group member not found"));

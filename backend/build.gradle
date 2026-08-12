@@ -29,6 +29,7 @@ dependencies {
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'org.springframework.security:spring-security-crypto:6.5.0'
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
+	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
 	compileOnly 'org.projectlombok:lombok'
 

@@ -55,8 +55,10 @@ class PhaseOneControllerTests {
 	void expenseControllerPostsExpenseThroughWorkflow() {
 		var workflow = mock(ExpenseWorkflowService.class);
 		var repository = mock(ExpenseRepository.class);
+		var userRepository = mock(UserRepository.class);
 		when(workflow.postExpense(any(PostExpenseCommand.class))).thenReturn(expense());
-		var controller = new ExpenseController(workflow, repository);
+		var controller = new ExpenseController(workflow, repository, userRepository);
+
 
 		var response = controller.postExpense(10L, new PostExpenseRequest(1L, "Dinner", 100000,
 				LocalDate.parse("2026-06-01"), 1L, SplitType.EQUAL, Map.of(1L, BigDecimal.ONE, 2L, BigDecimal.ONE)));

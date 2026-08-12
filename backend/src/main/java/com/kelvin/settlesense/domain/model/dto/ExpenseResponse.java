@@ -9,6 +9,7 @@ public record ExpenseResponse(
 		Long id,
 		Long groupId,
 		Long paidByUserId,
+		String paidByDisplayName,
 		String description,
 		String currencyCode,
 		long totalMinor,
@@ -17,12 +18,15 @@ public record ExpenseResponse(
 		ExpenseCategory category,
 		String receiptUrl) {
 
-	public static ExpenseResponse from(Expense expense) {
+	public static ExpenseResponse from(Expense expense, String paidByDisplayName) {
 		return new ExpenseResponse(expense.getId(), expense.getGroupId(), expense.getPaidByUserId(),
-				expense.getDescription(), expense.getCurrencyCode(), expense.getTotalMinor(), expense.getExpenseDate(),
-				expense.getStatus().name(),
+				paidByDisplayName, expense.getDescription(), expense.getCurrencyCode(), expense.getTotalMinor(),
+				expense.getExpenseDate(), expense.getStatus().name(),
 				expense.getCategory() != null ? expense.getCategory() : ExpenseCategory.GENERAL,
 				expense.getReceiptUrl());
 	}
-}
 
+	public static ExpenseResponse from(Expense expense) {
+		return from(expense, null);
+	}
+}

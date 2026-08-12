@@ -7,6 +7,15 @@ export type User = {
   status: string;
 };
 
+export type FriendshipResponse = {
+  id: number;
+  requester: User;
+  addressee: User;
+  status: 'PENDING' | 'ACCEPTED' | 'BLOCKED' | 'CANCELLED';
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Group = {
   id: number;
   name: string;
@@ -36,7 +45,9 @@ export type Expense = {
   id: number;
   groupId: number;
   paidByUserId: number;
+  paidByDisplayName?: string;
   description: string;
+
   currencyCode: string;
   totalMinor: number;
   expenseDate: string;
@@ -56,8 +67,44 @@ export type Settlement = {
   status: string;
 };
 
-export function listUsers() {
-  return apiRequest<User[]>('/api/users');
+export type ActivityEvent = {
+  id: number;
+  actorUserId: number;
+  eventType: string;
+  detailsJson: string;
+  createdAt: string;
+};
+
+export function listUsers(query?: string) {
+  const url = query ? `/api/users?search=${encodeURIComponent(query)}` : '/api/users';
+  return apiRequest<User[]>(url);
+}
+
+export function listFriends() {
+  return apiRequest<User[]>('/api/friends');
+}
+
+export function listFriendRequests() {
+  return apiRequest<FriendshipResponse[]>('/api/friends/requests');
+}
+
+export function sendFriendRequest(input: { email?: string; targetUserId?: number }) {
+  return apiRequest<FriendshipResponse>('/api/friends/request', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function acceptFriendRequest(friendshipId: number) {
+  return apiRequest<FriendshipResponse>(`/api/friends/${friendshipId}/accept`, {
+    method: 'POST',
+  });
+}
+
+export function rejectFriendRequest(friendshipId: number) {
+  return apiRequest<void>(`/api/friends/${friendshipId}/reject`, {
+    method: 'POST',
+  });
 }
 
 export function registerUser(input: { displayName: string; email: string }) {
@@ -145,3 +192,6 @@ export function listSettlementSuggestions(groupId: number) {
   return apiRequest<Balance[]>(`/api/groups/${groupId}/settlement-suggestions`);
 }
 
+export function listActivity() {
+  return apiRequest<ActivityEvent[]>('/api/activity');
+}
